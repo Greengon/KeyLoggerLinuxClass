@@ -2,7 +2,7 @@
 
 Collaborators: 
 	1.Gon Lubel.
-	2.Orel museri.
+	2.Orel Museri.
 
 Class:
 	linux kernel class colman collage.
