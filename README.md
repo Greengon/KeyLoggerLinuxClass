@@ -30,8 +30,11 @@ The moudle data varaibles are:
 - map of type Map struct of key value, holding all keysyms notifactions that are send from the keyboard and a string representing that keysyms.
 
 In the code itself a function name keyLogger_birth is been used as module_init when the moudle is been inserted. The function allocate character device named nu11.
-
-# the part about charater device
+first we register  a major number and check thats its not failed,
+to the function alloc_chrdev_region we send the addres of are major number and alloc_chrdev_region put the value in that addres.
+next we create the class for are keylogger and named him as DEVICE_NAME that we choose in the start of the file and the function return a sturcter of are class and  put it in key_logger_class and we chack thats we dont get null if we do  so we free the major number and return -1.
+next we create the device with device_create  function and give him are class that we create befor and the major number we register with and chack that its work if not we free the major number and the class.
+and after we make the device we can rigester him to the system of course free all if fail.
 
 Our moudle uses the notification chane of the keyboard to get notified when ever a keystroke as been made. This is been done by creating a new notifier_block named nb. whice as observer of the keybored will start the keys_pressed function on notifer_call.
 
