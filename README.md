@@ -36,7 +36,8 @@ next we create the class for are keylogger and named him as DEVICE_NAME that we 
 next we create the device with device_create  function and give him are class that we create befor and the major number we register with and chack that its work if not we free the major number and the class.
 and after we make the device we can rigester him to the system of course free all if fail.
 
-Our moudle uses the notification chane of the keyboard to get notified when ever a keystroke as been made. This is been done by creating a new notifier_block named nb. whice as observer of the keybored will start the keys_pressed function on notifer_call.
+Our moudle uses the notification chane of the keyboard to get notified when ever a keystroke as been made. This is been done by creating a new notifier_block named nb, when a notification chain is simply a loist of functions that are called once an event happens. Modules can register themselves in any notification chain by supplying a function pointer that will be called once an event happens. 
+Our module will give a pointer to the keys_pressed func.
 
 The keys_pressed function that will be called will take the data send by the keyboard and if the action that been send is keysyms and key pressed the value of keysyms will be pulled to a char variable. Then the char value will be checked with the map we creatd by using the get_value function.
 After gettting the compatailbe string , we will write the string to our buffer, waiting to be read by the user space.
